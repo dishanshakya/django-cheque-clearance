@@ -4,5 +4,5 @@
 
 # This is a cheque clearance server designed in django to detect, extract details and simulate clearance of cheques which are scanned using phone cameras.
 
-## To run:
-- ./server sbi ( or nic) { you may need to add executable permissions }
+## To run (may need to add executable permission for server file):
+- ./server sbi ( or nic) 
