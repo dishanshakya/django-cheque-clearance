@@ -20,8 +20,10 @@ else:
     if bank in codes:
         if not os.path.isdir('ocr/weights/'):
             print('Downloading models')
-            gdown.download('https://drive.google.com/uc?id=1BXggoCXKzCivAPAqs8DWDmnXTBtVZupK')
-            outputdir = Path('ocr/').mkdir(exist_ok=True, parents=True)
+            if not os.path.isfile('weights.tar.gz'):
+                gdown.download('https://drive.google.com/uc?id=1BXggoCXKzCivAPAqs8DWDmnXTBtVZupK')
+            outputdir = Path('ocr/')
+            outputdir.mkdir(exist_ok=True, parents=True)
             signatures = Path('ocr/signatures').mkdir(exist_ok=True, parents=True)
             with tarfile.open('weights.tar.gz', 'r:gz') as tar:
                 tar.extractall(path=outputdir)
