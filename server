@@ -26,7 +26,9 @@ else:
             outputdir.mkdir(exist_ok=True, parents=True)
             signatures = Path('ocr/signatures').mkdir(exist_ok=True, parents=True)
             with tarfile.open('weights.tar.gz', 'r:gz') as tar:
+                print('Extracting weights.tar.gz...')
                 tar.extractall(path=outputdir)
+                print('Done!')
                 Path('weights.tar.gz').unlink(missing_ok=True)
 
         os.system(f'BANK_PORT={codes[bank]} python manage.py runserver 0.0.0.0:{codes[bank]}')
