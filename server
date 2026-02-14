@@ -1,0 +1,32 @@
+#! /bin/python
+
+import sys
+import os
+import gdown
+import tarfile
+from pathlib import path
+
+codes = {
+        'sbi': 8801,
+        'nic': 10301,
+        }
+if len(sys.argv) != 2:
+    print('Usage: ./server <bank_name> (sbi, nic) ')
+    exit(0)
+
+else:
+    bank = sys.argv[1]
+
+    if bank in codes:
+        if not os.path.isdir('ocr/weights/'):
+            print('Downloading models')
+            gdown.download('https://drive.google.com/uc?id=1BXggoCXKzCivAPAqs8DWDmnXTBtVZupK')
+            outputdir = Path('ocr/').mkdir(exist_ok=True, parents=True)
+            signatures = Path('ocr/signatures').mkdir(exist_ok=True, parents=True)
+            with tarfile.open('weights.tar.gz', 'r:gz') as tar:
+                tar.extractall(path=outputdir)
+                Path('weights.tar.gz').unlink(missing_ok=True)
+
+        os.system(f'BANK_PORT={codes[bank]} python manage.py runserver 0.0.0.0:{codes[bank]}')
+
+

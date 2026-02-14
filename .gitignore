@@ -1,0 +1,10 @@
+weights/
+db.sqlite3
+signatures/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Django migrations (optional: sometimes you want to commit them)
+*/migrations/*.pyc
+*/migrations/__pycache__/

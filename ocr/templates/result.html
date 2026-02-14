@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="col-md-4 offset-md-4">
+	<h1>Extracted Details</h1><br/>
+	<table class="table table-bordered">
+		<tr>
+			<td class="table-dark"><strong>Name </strong></td>
+			<td> {{ name }}</td>
+		</tr>
+		<tr>
+			<td class="table-dark"><strong>Amount </strong></td>
+			<td> {{ amount }}</td>
+		</tr>
+		<tr>
+			<td class="table-dark"><strong>Words </strong></td>
+			<td> {{ words }}</td>
+		</tr>
+		<tr>
+			<td class="table-dark"><strong>Date </strong></td>
+			<td> {{ date }}</td>
+		</tr>
+		<tr>
+			<td class="table-dark"><strong>MICR </strong></td>
+			<td> {{ micr }}</td>
+		</tr>
+		<tr>
+			<td class="table-dark"><strong>Cheque Number </strong></td>
+			<td> {{ serial }}</td>
+		</tr>
+		<tr>
+			<td class="table-dark"><strong>Bank </strong></td>
+			<td> {{ bank }}</td>
+		</tr>
+
+	</table>
+	<br/>
+	<a class="btn btn-secondary" href="{% url 'home' %}">Back</a>
+	<form action="{% url 'confirm' %}" method="POST">
+		<input type="hidden" name="token" value={{token}} />
+		<button class="btn btn-primary">Confirm</button>
+	</form>
+</div>
+{% endblock %}

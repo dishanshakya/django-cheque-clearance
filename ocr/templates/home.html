@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="col-md-6 offset-md-3">
+	<div class='card'>
+		<h2 class='card-title'>{{ name }}</h2>
+		<p class='card-subtitle'>{{ account_no }}</p>
+		<h1 class='card-text'>{{ balance }}</h1>
+	</div>
+	<h1>Upload</h1>
+	<a href="{% url 'logout' %}">Logout</a>
+	<form method="post" enctype="multipart/form-data">
+		{% csrf_token %}
+
+		<div class="mt-3">
+			<img
+			  id="preview"
+			  class="img-fluid border rounded d-none"
+			  style="max-height: 300px;"
+			>
+		</div>
+		<br/>
+		<br/>
+
+		<div class="input-group">
+		  <input type="file" class="form-control" name="image" accept="image/*" required onchange="previewImage(event)">
+			<select class="form-select" name="language" id="flag">
+				<option value="0" selected>English</option>
+				<option value="1">Nepali</option>
+			</select>
+		  <button class="btn btn-outline-secondary" type="submit" >Upload</button>
+		</div>
+
+		<script>
+		function previewImage(event) {
+		  const img = document.getElementById("preview");
+		  const file = event.target.files[0];
+
+		  if (!file) return;
+
+		  img.src = URL.createObjectURL(file);
+		  img.classList.remove("d-none");
+		}
+		</script>
+	</form>
+</div>
+{% endblock %}
