@@ -4,7 +4,7 @@ import sys
 import os
 import gdown
 import tarfile
-from pathlib import path
+from pathlib import Path
 
 codes = {
         'sbi': 8801,
