@@ -15,6 +15,12 @@ class BankAccount(models.Model):
     def __str__(self):
         return f'{self.user.first_name} {self.user.last_name} - {self.account_no}'
 
+class Statements(models.Model):
+    account = models.ForeignKey(BankAccount, on_delete=models.PROTECT, related_name='statements')
+    amount = models.FloatField()
+    date = models.DateTimeField(auto_now_add=True)
+    remarks = models.CharField(max_length=50, null=True, blank=True)
+
 class Cheque(models.Model):
     STATUS_CHOICES = (
         ("unused", "Unused"),
@@ -31,3 +37,8 @@ class Cheque(models.Model):
 
     def __str__(self):
         return str(self.number)
+
+class AuthToken(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='token')
+    key = models.CharField(max_length=40, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)

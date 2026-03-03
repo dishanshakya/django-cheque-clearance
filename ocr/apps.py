@@ -1,6 +1,7 @@
 from django.apps import AppConfig
 import os
 from .ocr import EnglishOCR, NepaliOCR, MICROCR
+from .signature import SCNN
 from ultralytics import YOLO
 
 
@@ -13,6 +14,7 @@ class OcrConfig(AppConfig):
     microcr = None
     yolo_text = None
     yolo_cheque = None
+    scnn = None
 
     def ready(self):
         if os.environ.get("RUN_MAIN") != "true":
@@ -25,6 +27,7 @@ class OcrConfig(AppConfig):
 
         OcrConfig.yolo_text = YOLO('ocr/weights/yolo_text.pt')
         OcrConfig.yolo_cheque = YOLO('ocr/weights/yolo_cheque.pt')
+        OcrConfig.scnn = SCNN('ocr/weights/sign_best.pth')
         print('All models loaded!')
 
 

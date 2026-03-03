@@ -111,8 +111,16 @@ class EnglishOCR:
             output = self.model(tensor.to(self.device))
             if num_bias:
                 output[..., EnglishOCR.digit_indices] += num_bias
-
-            text = self.greedy_decoder(output)
+                text = self.greedy_decoder(output)
+                text = text.replace('Z', '2')
+                text = text.replace('z', '2')
+                text = text.replace('b', '6')
+                text = text.replace('l', '1')
+                text = text.replace('I', '1')
+                text = text.replace('F', '7')
+                text = self.greedy_decoder(output)
+            else:
+                text = self.greedy_decoder(output)
             print(text)
             return text
 

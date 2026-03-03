@@ -1,20 +1,36 @@
-from django.shortcuts import render, redirect
 from django.conf import settings
-from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth import authenticate
 import cv2
 import uuid
 import requests
 import numpy as np
-from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
+from django.http import JsonResponse
 from .apps import OcrConfig
-from .utils import fetch_cheque_details, words2amt
+from .utils import fetch_cheque_details, words2amt, code2name
 from django.core.cache import cache
-from .models import Cheque
+from .models import Cheque, AuthToken, BankAccount, Statements
 from .validate import validate_cheque, validate_drawee
+import secrets
+from .auth import token_required
 
 # Create your views here.
-def home(request):
-    if request.user.is_authenticated:
+@token_required
+def account(request):
+    try:
+        account = BankAccount.objects.get(user=request.user)
+        return JsonResponse({
+            'name': account.user.get_full_name(),
+            'balance': account.balance,
+            'account_no': account.account_no,
+            'statements': list(account.statements.order_by('-date').values('date', 'amount', 'remarks', 'id'))
+
+        })
+    except BankAccount.DoesNotExist:
+        return JsonResponse({'msg': 'Account does not exist'}, status=400)
+
+@token_required
+def cheque_upload(request):
+    if True or request.user.is_authenticated:
         if request.method == 'POST':
             f = request.FILES['image']
             lang = int(request.POST['language'])
@@ -46,17 +62,16 @@ def home(request):
                 else:
                     token = str(uuid.uuid4())
                     cache.set(token, output|{'lang':lang,'foreign':False}, timeout=300)
-                    return render(request, 'result.html', output | {'token':token})
+                    output.pop('signa', None)
+                    output.pop('signb', None)
+                    return JsonResponse(output| {'token':token})
+                    #return render(request, 'result.html', output | {'token':token})
             except Exception as e:
-                raise e
-                #return HttpResponse(str(e))
+                return HttpResponse(str(e))
         else:
-            bank_acc = request.user.bank_account
-            print(bank_acc)
-            return render(request, 'home.html', {'name':bank_acc.user.first_name,
-                                                 'account_no':bank_acc.account_no, 'balance': bank_acc.balance})
+            return JsonResponse({'msg':'post required'}, status=400)
     else:
-        return redirect('login')
+        return JsonResponse({'msg':'wrong'}, status=400)
 
 
 def foreign(request):
@@ -84,6 +99,8 @@ def foreign(request):
             token = str(uuid.uuid4())
             cache.set(token, output|{'lang':lang, 'foreign':False, 'intrabank':False}, timeout=300)
 
+            output.pop('signa', None)
+            output.pop('signb', None)
             return  JsonResponse(output | {'token':token, 'lang':lang})
         except Exception as e:
             print(e)
@@ -111,40 +128,57 @@ def foreign_confirm_view(request):
         cheque.status = 'bounced'
         cheque.save()
         cache.delete(token)
-        return HttpResponseBadRequest('Cheque bounced')
+        return JsonResponse({'msg':'Cheque bounced'}, status=400)
     else:
         minus_account.balance -= amt
         minus_account.save()
+        Statements.objects.create(
+            account=minus_account,
+            amount=-amt, 
+            remarks=f'{cheque_no} Cheque transfer to {data.name}'
+        )
         cache.delete(token)
-        return HttpResponse('success', status=200)
+        return JsonResponse({'status':'success', 'drawer':minus_account.user.get_full_name()}, status=200)
 
+@token_required
 def confirm_view(request):
     if request.method != 'POST':
-        return HttpResponseBadRequest()
+        return JsonResponse({'msg':'Post required'}, status=400)
 
     token = request.POST.get('token')
     data = cache.get(token)
 
     if not data:
-        return HttpResponseBadRequest('Expired')
+        return JsonResponse({'msg':'expired'}, status=400)
 
-    if not validate_drawee(request.user, data):
-        return JsonResponse({'msg':'Not your cheque'}, status=400)
+    try:
+        if not validate_drawee(request.user, data):
+            return JsonResponse({'msg':'Not your cheque'}, status=400)
+    except Exception as e:
+        return JsonResponse({'msg':str(e)}, status=400)
+
 
     cheque_no = int(data.get('serial'))
     lang = data['lang']
     amt = words2amt(data.get('words'), lang)
+    bank_code = data.get('bank_code')
 
     if data.get('foreign', False):
-        bank_code = data.get('bank_code')
-        response = requests.post(f'http://localhost:{8000+int(bank_code)}/api/foreign-confirm/', data={'token':token})
+        try:
+            response = requests.post(f'http://localhost:{8000+int(bank_code)}/api/foreign-confirm/', data={'token':token})
+        except:
+            return JsonResponse({'msg':'Other bank server not responding'}, status=400)
+
 
         if response.status_code != 200:
-            return HttpResponseBadRequest('Error happened')
+            return JsonResponse({'msg':response.json().msg}, status=400)
+        else:
+            drawer = response.json().drawer
 
     else:
         try:
             minus_account, cheque = validate_cheque(data)
+            drawer = minus_account.user.get_full_name()
         except Exception as e:
             return JsonResponse({'msg': str(e)}, status=400)
 
@@ -152,31 +186,33 @@ def confirm_view(request):
             cheque.status = 'bounced'
             cheque.save()
             cache.delete(token)
-            return HttpResponseBadRequest('Cheque bounced')
+            return JsonResponse({'msg':'Cheque bounced'}, status=400)
         else:
             minus_account.balance -= amt
+            Statements.objects.create(
+                account=minus_account,
+                amount=-amt, 
+                remarks=f'{cheque_no} Cheque transfer to {data.get('name')}'
+            )
             minus_account.save()
             
     plus_account = request.user.bank_account
     plus_account.balance += amt
     plus_account.save()
     cache.delete(token)
-    return HttpResponse('success', status=200)
+    minus_bank = int(bank_code)
+
+    Statements.objects.create(
+        account=plus_account,
+        amount=amt, 
+        remarks=f'{cheque_no} Cheque deposit'
+    )
+
+    return JsonResponse({
+        'status':'success', 
+        'amount': amt,
+        'drawer': drawer,
+        'bank': code2name(str(minus_bank) if minus_bank >=1000 else '0'+str(minus_bank))
+    })
 
 
-def login_user(request):
-    if request.method == 'POST':
-        username = request.POST['username']
-        password = request.POST['password']
-
-        user = authenticate(request, username=username, password=password)
-
-        if user:
-            login(request, user)
-            return redirect('home')
-    else:
-        return render(request, 'login.html')
-
-def logout_user(request):
-    logout(request)
-    return redirect('login')

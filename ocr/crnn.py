@@ -79,7 +79,7 @@ class XCRNN(nn.Module):
         return prediction
 
 class CRNN(nn.Module):
-    def __init__(self, num_class=2+1):
+    def __init__(self, num_class=2):
         super(CRNN, self).__init__()
 
         # CNN feature extractor
@@ -93,21 +93,27 @@ class CRNN(nn.Module):
             nn.MaxPool2d(2, 2),  # 8xW/4
 
             nn.Conv2d(64, 128, kernel_size=3, padding=1),
+            nn.BatchNorm2d(128),
             nn.ReLU(inplace=True),
-            nn.AdaptiveAvgPool2d((1, None)),
+            nn.MaxPool2d((2,1), (2,1)),
+
+            nn.Conv2d(128, 256, kernel_size=3, padding=1),
+            nn.BatchNorm2d(256),
+            nn.ReLU(inplace=True),
+            nn.AdaptiveAvgPool2d((1, None)), 
         )
 
         # Recurrent layers (BiLSTM)
         self.rnn = nn.LSTM(
-            input_size=128,
-            hidden_size=128,
+            input_size=256,
+            hidden_size=256,
             num_layers=2,
             bidirectional=True,
             batch_first=True
         )
 
         # Final classifier
-        self.fc = nn.Linear(128*2, num_class)  # bidirectional
+        self.fc = nn.Linear(256*2, num_class)
 
     def forward(self, x):
         # x: (B, 1, H, W)
@@ -115,7 +121,7 @@ class CRNN(nn.Module):
         conv = conv.squeeze(2)       # (B, C, W)
         conv = conv.permute(0, 2, 1) # (B, W, C)
         rnn_out, _ = self.rnn(conv)
-        out = self.fc(rnn_out)
+        out = self.fc(rnn_out.contiguous())
         out = out.permute(1,0,2)     # (seq_len, B, num_classes)
 
         return out

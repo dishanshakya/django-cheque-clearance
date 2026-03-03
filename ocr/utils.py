@@ -35,14 +35,11 @@ def sort_boxes_reading_order(boxes, line_threshold=100):
     if current_line:
         lines.append(sorted(current_line, key=lambda b: (b[0][0] + b[0][2]) // 2))
 
-    # Flatten the result
-    # return [box for line in lines for box in line]
     return lines
 
 #pad and resize
 def padded_resize(image: np.ndarray, fill_color=(255, 255, 255)) -> np.ndarray:
     h, w = image.shape[:2]
-    # print(h,w)
     imgsz = 800
 
     if w == h:
@@ -149,16 +146,10 @@ def rotate_using_micr(image, cheque_detect_model):
 
     amtgray = cv2.cvtColor(amtbb, cv2.COLOR_BGR2GRAY)
 
-    # plt.imshow(amtgray, cmap='gray')
-    # plt.show()
-
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
     amtc = clahe.apply(amtgray)
 
     amtblur = cv2.GaussianBlur(amtc, (5, 5), 0)
-
-    # plt.imshow(amtblur, cmap='gray')
-    # plt.show()
 
     amth = cv2.adaptiveThreshold(
             amtblur,
@@ -169,13 +160,8 @@ def rotate_using_micr(image, cheque_detect_model):
             C=10
             )
 
-    # plt.imshow(amth, cmap='gray')
-    # plt.show()
-
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
     dilated = cv2.morphologyEx(amth, cv2.MORPH_CLOSE, kernel, iterations=1)
-    # plt.imshow(dilated, cmap='gray')
-    # plt.show()
 
     contours, hierarchy = cv2.findContours(dilated, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
@@ -198,15 +184,11 @@ def rotate_using_micr(image, cheque_detect_model):
     mask = np.zeros_like(temp)
 
     cv2.drawContours(temp, [cnt], -1, (0,255,0), 2,)
-    # plt.imshow(temp)
-    # plt.show()
 
     cv2.drawContours(mask, [cnt], contourIdx=0, color=(255,255,255), thickness=-1)
 
     maskgray = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
     masker = cv2.erode(maskgray, kernel, iterations=2)
-    # plt.imshow(masker, cmap='gray')
-    # plt.show()
 
     mcontours, _ = cv2.findContours(masker, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
@@ -216,15 +198,7 @@ def rotate_using_micr(image, cheque_detect_model):
 
     cv2.drawContours(temp, [cnt], -1, (0,255,0), 2,)
 
-    # plt.imshow(masker, cmap='gray')
-    # plt.show()
     cv2.drawContours(temp, [mcnt], -1, (0,0,255), 2)
-    #plt.imshow(temp)
-    #plt.show()
-
-
-    # plt.imshow(dilated, cmap='gray')
-    # plt.show()
 
     (xc, yc), (width, height), angle = rect
 
@@ -236,9 +210,7 @@ def rotate_using_micr(image, cheque_detect_model):
       if angle < -150:
           angle += 180
       width, height = height, width
-      print('wield')
 
-    print('angles muji',angle)
 
     (h, w) = cheque.shape[:2]
     center = w //2, h//2
@@ -247,15 +219,9 @@ def rotate_using_micr(image, cheque_detect_model):
 
     xc, yc = xc+ax1, yc+ay1
 
-    # print('old', xc, yc)
-
     xc, yc = map(int, m @ np.array([xc, yc, 1]))
-    # print('new', xc , yc)
-
 
     cheque = cv2.cvtColor(output, cv2.COLOR_BGR2RGB)
-    #plt.imshow(cheque)
-    #plt.show()
 
     return cheque, (xc, yc), (width, height)
 
@@ -272,16 +238,10 @@ def extract_roi(cheque, amtcenter, amtsize):
     amountx2 = int(xc + width/2)
     amounty2 = int(yc + height/2)
     amounty1 = int(yc - height/2)
-    # print(amountx1, amountx2, amounty1, amounty2)
 
     amt = cheque[amounty1+10:amounty2-10, amountx1+10:amountx2-10]
-    #plt.imshow(amt)
-    #plt.show()
     gray = cv2.cvtColor(amt, cv2.COLOR_BGR2GRAY)
     amt_gray = cv2.GaussianBlur(gray, (7, 7), 0)
-
-    # plt.imshow(micr_gray, cmap='gray')
-    # plt.show()
 
     amt_bin = cv2.adaptiveThreshold(
             amt_gray,
@@ -311,8 +271,31 @@ def extract_roi(cheque, amtcenter, amtsize):
     signby2 = amounty1 + int(sf * (1.5))
 
     signatureb = cheque[signby1:signby2, signbx1:signbx2]
-    # plt.imshow(signatureb)
-    # plt.show()
+    signb_gray = cv2.cvtColor(signatureb, cv2.COLOR_BGR2GRAY)
+    signb_gray = cv2.GaussianBlur(signb_gray, (7, 7), 0)
+
+
+    signb_bin = cv2.adaptiveThreshold(
+            signb_gray,
+            maxValue=255,
+            adaptiveMethod=cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+            thresholdType=cv2.THRESH_BINARY_INV,
+            blockSize=31,
+            C=10
+        )
+
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (25, 25))
+    dilated = cv2.dilate(signb_bin, kernel, iterations=2)
+
+    contours, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    # pick largest connected region
+    cnt = max(contours, key=cv2.contourArea)
+
+    tmp = signatureb.copy()
+    mx,my,mw,mh = cv2.boundingRect(cnt)
+
+    signatureb = tmp[my:my+mh, mx:mx+mw]
 
     signax1 = amountx1 + int(sf * (1/8))
     signax2 = amountx1 + int(sf * (2))
@@ -320,8 +303,32 @@ def extract_roi(cheque, amtcenter, amtsize):
     signay2 = amounty1 + int(sf * (1.5))
 
     signaturea = cheque[signay1:signay2, signax1:signax2]
-    # plt.imshow(signaturea)
-    # plt.show()
+
+    signa_gray = cv2.cvtColor(signaturea, cv2.COLOR_BGR2GRAY)
+    signa_gray = cv2.GaussianBlur(signa_gray, (7, 7), 0)
+
+
+    signa_bin = cv2.adaptiveThreshold(
+            signa_gray,
+            maxValue=255,
+            adaptiveMethod=cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+            thresholdType=cv2.THRESH_BINARY_INV,
+            blockSize=31,
+            C=10
+        )
+
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (25, 25))
+    dilated = cv2.dilate(signa_bin, kernel, iterations=2)
+
+    contours, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    # pick largest connected region
+    cnt = max(contours, key=cv2.contourArea)
+
+    tmp = signaturea.copy()
+    mx,my,mw,mh = cv2.boundingRect(cnt)
+
+    signaturea = tmp[my:my+mh, mx:mx+mw]
 
     # #date
     datex1 = amountx1
@@ -337,21 +344,17 @@ def extract_roi(cheque, amtcenter, amtsize):
     namey2 = amounty1
 
     name = cheque[namey1:namey2, namex1:namex2]
-    # plt.imshow(name)
-    # plt.show()
 
     # #amount in words
     wordsx1 = amountx1 - int(sf * (5))
     wordsx2 = amountx1
     wordsy1 = amounty1 - int(sf * (1/8))
-    wordsy2 = amounty1 + int(sf * (3/8))
+    wordsy2 = amounty1 + int(sf * (4/8))
 
     words = cheque.copy()[wordsy1:wordsy2, wordsx1:wordsx2]
     #neglecting printed texts
     words[:int(sf * (2.5/8)), :int(sf * (3/8))] = 0
-    words[int(sf* (2/8)):int(sf* (3.5/8)), int(sf * (3+6/8)):int(sf * (4.5))] = 0
-    #plt.imshow(words)
-    #plt.show()
+    words[int(sf* (2.5/8)):int(sf* (3.5/8)), int(sf * (3+6/8)):int(sf * (4.5))] = 0
 
     # #micr cheque
     micrx1 = amountx1 - int(sf * (5+5/8))
@@ -364,9 +367,6 @@ def extract_roi(cheque, amtcenter, amtsize):
     micr_gray = cv2.cvtColor(micr, cv2.COLOR_BGR2GRAY)
     micr_gray = cv2.GaussianBlur(micr_gray, (7, 7), 0)
 
-    # plt.imshow(micr_gray, cmap='gray')
-    # plt.show()
-
     micr_bin = cv2.adaptiveThreshold(
             micr_gray,
             maxValue=255,
@@ -375,11 +375,6 @@ def extract_roi(cheque, amtcenter, amtsize):
             blockSize=31,
             C=10
         )
-
-    # plt.imshow(micr_bin, cmap='gray')
-    # plt.show()
-    # plt.imshow(micr)
-    # plt.show()
 
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (25, 7))
     dilated = cv2.dilate(micr_bin, kernel, iterations=2)
@@ -391,13 +386,10 @@ def extract_roi(cheque, amtcenter, amtsize):
 
     tmp = micr.copy()
     mx,my,mw,mh = cv2.boundingRect(cnt)
-    # plt.imshow(tmp[my-10:my+mh+10, mx:mx+mw])
-    # plt.show()
 
     micr = tmp[my-15:my+mh+15, mx:mx+mw]
 
-
-    return [amt,  name, words, date, micr]
+    return [amt,  name, words, date, micr, signaturea, signatureb]
 
 def parse_micr(micr):
     nums = re.findall(r'\d+', micr)
@@ -420,10 +412,10 @@ def extract_date(date_img, ocr_model, language=0):
   text = ''
   for i in range(8):
     box = date_img[10:h-10, int(i*w/8+10):int((i+1)*w/8-10)]
-    #plt.imshow(box, cmap='gray')
-    #plt.show()
-    # cls=1
     pred_text = ocr_model.predict(box, num_bias=3)
+
+    if len(pred_text)>1 and len(set(pred_text))==1:
+        pred_text = pred_text[0]
     if language==0:
         if len(pred_text)>1 and pred_text != '11':
             pred_text = ''.join(pred_text.split('1'))
@@ -532,9 +524,9 @@ def normalize_words_eng(text):
 
     for t in tokens:
         match, score, _ = process.extractOne(
-            t, VALID_WORDS, scorer=fuzz.ratio
+            t, VALID_WORDS, scorer=fuzz.WRatio
         )
-        out.append(match if score > 70 else '')
+        out.append(match if score > 65 else '')
 
     return " ".join(out)
 
@@ -549,7 +541,7 @@ def normalize_words_nep(text):
         t = t.replace('थ', 'य')
         t = t.replace('ध', 'घ')
         match, score, _ = process.extractOne(
-            t, VALID_WORDS, scorer=fuzz.ratio
+            t, VALID_WORDS, scorer=fuzz.WRatio
         )
         out.append(match if score > 65 else '')
 
@@ -558,6 +550,8 @@ def normalize_words_nep(text):
 def fetch_cheque_details(image, cheque_detect_model, yolo_text, ocr_model, micr_model, language='eng'):
     cheque, center, size = rotate_using_micr(image, cheque_detect_model)
     ocr = extract_roi(cheque, center, size)
+    signb = ocr.pop()
+    signa = ocr.pop()
     micr = ocr.pop()
     micr_text = micr_model.predict(micr)
     serial, bank_code, *_ = parse_micr(micr_text)
@@ -566,8 +560,6 @@ def fetch_cheque_details(image, cheque_detect_model, yolo_text, ocr_model, micr_
 
     output_text = []
     for i in ocr:
-        # eng = padded_resize(i)
-
         gray = cv2.cvtColor(i, cv2.COLOR_BGR2GRAY)
         k = 0.2
         corrected = 255 * ((gray/255.0)**k)
@@ -581,7 +573,7 @@ def fetch_cheque_details(image, cheque_detect_model, yolo_text, ocr_model, micr_
         enhanced = padded_resize(color, fill_color=(0,0,0))
         eng = padded_resize(i)
 
-        result = yolo_text(enhanced, iou=0.1, verbose=False)
+        result = yolo_text(enhanced, iou=0.5, verbose=False)
         #result[0].show()
 
         boxes = result[0].boxes
@@ -596,18 +588,14 @@ def fetch_cheque_details(image, cheque_detect_model, yolo_text, ocr_model, micr_
                 if (y2-y1) < 25:
                     continue
 
-
                 dis = eng[y1:y2, x1:x2]
-                # display(dis)
                 text += ocr_model.predict(dis) + ' '
-        # display(eng)
-        # print('Output:')
-        # print(text)
-        output_text.append(text.strip())
     return {'name': output_text[0], 'amount': amt, 'date': date_text,
             'words': normalize_words_eng(output_text[1]) if language=='eng' else normalize_words_nep(output_text[1]),
             'micr':micr_text, 'serial':serial, 'bank':code2name(bank_code), 
-            'bank_code':bank_code[:4] if len(bank_code)>4 else bank_code}
+            'bank_code':bank_code[:4] if len(bank_code)>4 else bank_code,
+            'signa':signa, 'signb':signb,
+            }
 
 def words_to_int(text: str) -> int:
     text = text.lower().replace("-", " ")
