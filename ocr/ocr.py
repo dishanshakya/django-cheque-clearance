@@ -20,9 +20,9 @@ class MICROCR:
         self.model.eval()
 
     def preprocess(self, img):
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         if img is None:
-            raise FileNotFoundError(f"Image not found")
+            raise FileNotFoundError(f"Micr not clear")
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
         h, w = img.shape
         img_height = 32
@@ -113,12 +113,15 @@ class EnglishOCR:
                 output[..., EnglishOCR.digit_indices] += num_bias
                 text = self.greedy_decoder(output)
                 text = text.replace('Z', '2')
+                print('replaced z')
+                print(text)
                 text = text.replace('z', '2')
                 text = text.replace('b', '6')
                 text = text.replace('l', '1')
                 text = text.replace('I', '1')
                 text = text.replace('F', '7')
-                text = self.greedy_decoder(output)
+                text = text.replace('Y', '4')
+                text = text.replace('y', '4')
             else:
                 text = self.greedy_decoder(output)
             print(text)

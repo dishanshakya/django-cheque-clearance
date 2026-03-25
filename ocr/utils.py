@@ -75,8 +75,13 @@ def padded_resize(image: np.ndarray, fill_color=(255, 255, 255)) -> np.ndarray:
     return final
 
 def rotate_using_micr(image, cheque_detect_model):
-    image = cv2.resize(image, (2688, 1512))
+    ih, iw, ic = image.shape
+    print(image.shape)
+    nw = 2688
+    nh = int(ih * (nw/iw))
+    image = cv2.resize(image, (nw, nh))
     result = cheque_detect_model(image, conf=0.7)
+    original = result.copy()
     global cheque
     cheque = None
 
@@ -96,7 +101,6 @@ def rotate_using_micr(image, cheque_detect_model):
         output = None
         output1 = rotate_bound(image, angle)
         result1 = cheque_detect_model(output1)
-        #result1[0].show()
         ratio1 = None
         ratio2 = None
         for j, cls in enumerate(result1[0].boxes.cls):
@@ -110,7 +114,6 @@ def rotate_using_micr(image, cheque_detect_model):
 
         output2 = rotate_bound(image, -angle)
         result2 = cheque_detect_model(output2)
-        #result2[0].show()
 
         for j, cls in enumerate(result2[0].boxes.cls):
           name1 = cheque_detect_model.names[int(cls)]
@@ -125,57 +128,61 @@ def rotate_using_micr(image, cheque_detect_model):
 
 
 
-    for i, cls in enumerate(result[0].boxes.cls):
-      name = cheque_detect_model.names[int(cls)]
-      if name == 'cheque':
-        chequebox = result[0].boxes.xyxy[i]
-        x1, y1, x2, y2 = map(int, chequebox)
-        cheque = output
+    for results in [result, original]:
+        for i, cls in enumerate(results[0].boxes.cls):
+          name = cheque_detect_model.names[int(cls)]
+          if name == 'cheque':
+            chequebox = result[0].boxes.xyxy[i]
+            x1, y1, x2, y2 = map(int, chequebox)
+            cheque = output
 
 
 
-    cx1, cy1, cx2, cy2 = map(int, chequebox)
-    w = cx2-cx1
-    h = cy2-cy1
+        cx1, cy1, cx2, cy2 = map(int, chequebox)
+        w = cx2-cx1
+        h = cy2-cy1
 
-    ax1 = int(cx1 + 0.6*w)
-    ay1 = int(cy1 + 0.2*h)
-    ay2 = int(cy1 + 0.5*h)
-    amtbb = None
-    amtbb = cheque[ay1:ay2, ax1:cx2]
+        ax1 = int(cx1 + 0.6*w)
+        ay1 = int(cy1 + 0.2*h)
+        ay2 = int(cy1 + 0.5*h)
+        amtbb = None
+        amtbb = cheque[ay1:ay2, ax1:cx2]
 
-    amtgray = cv2.cvtColor(amtbb, cv2.COLOR_BGR2GRAY)
+        amtgray = cv2.cvtColor(amtbb, cv2.COLOR_BGR2GRAY)
 
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
-    amtc = clahe.apply(amtgray)
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+        amtc = clahe.apply(amtgray)
 
-    amtblur = cv2.GaussianBlur(amtc, (5, 5), 0)
+        amtblur = cv2.GaussianBlur(amtc, (5, 5), 0)
 
-    amth = cv2.adaptiveThreshold(
-            amtblur,
-            maxValue=255,
-            adaptiveMethod=cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-            thresholdType=cv2.THRESH_BINARY_INV,
-            blockSize=31,
-            C=10
-            )
+        amth = cv2.adaptiveThreshold(
+                amtblur,
+                maxValue=255,
+                adaptiveMethod=cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                thresholdType=cv2.THRESH_BINARY_INV,
+                blockSize=31,
+                C=10
+                )
 
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
-    dilated = cv2.morphologyEx(amth, cv2.MORPH_CLOSE, kernel, iterations=1)
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
+        dilated = cv2.morphologyEx(amth, cv2.MORPH_CLOSE, kernel, iterations=3)
 
-    contours, hierarchy = cv2.findContours(dilated, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        contours, hierarchy = cv2.findContours(dilated, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
-    ext_idx = max(
-        range(len(contours)),
-        key=lambda i: cv2.contourArea(contours[i])
-        if hierarchy[0][i][3] == -1 else 0
-    )
+        ext_idx = max(
+            range(len(contours)),
+            key=lambda i: cv2.contourArea(contours[i])
+            if hierarchy[0][i][3] == -1 else 0
+        )
 
-    internal = [
-        contours[i]
-        for i in range(len(contours))
-        if hierarchy[0][i][3] == ext_idx
-    ]
+        internal = [
+            contours[i]
+            for i in range(len(contours))
+            if hierarchy[0][i][3] == ext_idx
+        ]
+
+        if len(internal):
+            break
 
     cnt = max(internal, key=cv2.contourArea)
 
@@ -184,6 +191,7 @@ def rotate_using_micr(image, cheque_detect_model):
     mask = np.zeros_like(temp)
 
     cv2.drawContours(temp, [cnt], -1, (0,255,0), 2,)
+    
 
     cv2.drawContours(mask, [cnt], contourIdx=0, color=(255,255,255), thickness=-1)
 
@@ -376,7 +384,7 @@ def extract_roi(cheque, amtcenter, amtsize):
             C=10
         )
 
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (25, 7))
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (25, 15))
     dilated = cv2.dilate(micr_bin, kernel, iterations=2)
 
     contours, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -548,8 +556,17 @@ def normalize_words_nep(text):
     return " ".join(out)
 
 def fetch_cheque_details(image, cheque_detect_model, yolo_text, ocr_model, micr_model, language='eng'):
-    cheque, center, size = rotate_using_micr(image, cheque_detect_model)
-    ocr = extract_roi(cheque, center, size)
+    try:
+        cheque, center, size = rotate_using_micr(image, cheque_detect_model)
+    except Exception as e:
+        print(e)
+        raise Exception('Cheque detection failed. Please try again')
+
+    try:
+        ocr = extract_roi(cheque, center, size)
+    except Exception as e:
+        print(e)
+        raise Exception('Cheque not clear. Try again')
     signb = ocr.pop()
     signa = ocr.pop()
     micr = ocr.pop()
@@ -590,6 +607,7 @@ def fetch_cheque_details(image, cheque_detect_model, yolo_text, ocr_model, micr_
 
                 dis = eng[y1:y2, x1:x2]
                 text += ocr_model.predict(dis) + ' '
+        output_text.append(text)
     return {'name': output_text[0], 'amount': amt, 'date': date_text,
             'words': normalize_words_eng(output_text[1]) if language=='eng' else normalize_words_nep(output_text[1]),
             'micr':micr_text, 'serial':serial, 'bank':code2name(bank_code), 

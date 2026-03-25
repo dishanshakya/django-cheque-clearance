@@ -67,7 +67,7 @@ def cheque_upload(request):
                     return JsonResponse(output| {'token':token})
                     #return render(request, 'result.html', output | {'token':token})
             except Exception as e:
-                return HttpResponse(str(e))
+                return JsonResponse({'msg':str(e)}, status=400)
         else:
             return JsonResponse({'msg':'post required'}, status=400)
     else:

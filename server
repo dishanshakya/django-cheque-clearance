@@ -21,7 +21,7 @@ else:
         if not os.path.isdir('ocr/weights/'):
             print('Downloading models')
             if not os.path.isfile('weights.tar.gz'):
-                gdown.download('https://drive.google.com/uc?id=1BXggoCXKzCivAPAqs8DWDmnXTBtVZupK')
+                gdown.download('https://drive.google.com/uc?id=18U2ViiVjTTU2EDUTEavl4eljaDfhxiwi')
             outputdir = Path('ocr/')
             outputdir.mkdir(exist_ok=True, parents=True)
             signatures = Path('ocr/signatures').mkdir(exist_ok=True, parents=True)
