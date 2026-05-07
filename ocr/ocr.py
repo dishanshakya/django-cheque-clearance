@@ -122,6 +122,8 @@ class EnglishOCR:
                 text = text.replace('F', '7')
                 text = text.replace('Y', '4')
                 text = text.replace('y', '4')
+                text = text.replace('o', '0')
+                text = text.replace('O', '0')
             else:
                 text = self.greedy_decoder(output)
             print(text)

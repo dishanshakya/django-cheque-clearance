@@ -57,7 +57,7 @@ def cheque_upload(request):
                     foreign_data = response.json()
                     foreign_token = foreign_data.get('token', 0)
                     cache.set(foreign_token, foreign_data|{'foreign':True}, timeout=10)
-                    return render(request, 'result.html', foreign_data | {'token':foreign_token})
+                    return JsonResponse(foreign_data | {'token':foreign_token})
 
                 else:
                     token = str(uuid.uuid4())
@@ -131,6 +131,8 @@ def foreign_confirm_view(request):
         return JsonResponse({'msg':'Cheque bounced'}, status=400)
     else:
         minus_account.balance -= amt
+        cheque.status = 'used'
+        cheque.save()
         minus_account.save()
         Statements.objects.create(
             account=minus_account,
@@ -189,6 +191,8 @@ def confirm_view(request):
             return JsonResponse({'msg':'Cheque bounced'}, status=400)
         else:
             minus_account.balance -= amt
+            cheque.status = 'used'
+            cheque.save()
             Statements.objects.create(
                 account=minus_account,
                 amount=-amt, 

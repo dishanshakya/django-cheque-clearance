@@ -9,6 +9,7 @@ from pathlib import Path
 codes = {
         'sbi': 8801,
         'nic': 10301,
+        'rbb': 8201,
         }
 if len(sys.argv) != 2:
     print('Usage: ./server <bank_name> (sbi, nic) ')
